@@ -44,7 +44,8 @@ app.add_middleware(
 
 app.include_router(features_router)
 
-UPLOAD_DIR = os.path.abspath(os.getenv("UPLOAD_DIR", "uploads"))
+_default_upload_dir = "/tmp/uploads" if os.getenv("VERCEL") else "uploads"
+UPLOAD_DIR = os.path.abspath(os.getenv("UPLOAD_DIR", _default_upload_dir))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
@@ -356,10 +357,8 @@ def ask_assistant(req: AssistantRequest, db: Session = Depends(get_db), user: Us
 
 # Mount uploads directory to serve uploaded images
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-app.mount("/icons", StaticFiles(directory=os.path.abspath("icons")), name="icons")
-
-# Serve root pages
-PROJECT_ROOT = os.path.abspath(".")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+app.mount("/icons", StaticFiles(directory=os.path.join(PROJECT_ROOT, "icons")), name="icons")
 
 PAGES = ["index.html", "login.html", "dashboard.html", "results.html", "tracker.html", "assistant.html",
          "diseases.html", "profile.html", "admin.html", "batch.html", "compare.html", "offline.html"]

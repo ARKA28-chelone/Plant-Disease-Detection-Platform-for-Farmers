@@ -2,11 +2,12 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Default to SQLite for seamless instant local usage, but allow MySQL via DATABASE_URL
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", 
-    "sqlite:///./plant_disease.db"
-)
+# Default to SQLite for seamless instant local usage, but allow Postgres/MySQL via DATABASE_URL.
+# On Vercel's read-only filesystem, fall back to /tmp/plant_disease.db when DATABASE_URL is unset.
+_default_db = "sqlite:////tmp/plant_disease.db" if os.getenv("VERCEL") else "sqlite:///./plant_disease.db"
+DATABASE_URL = os.getenv("DATABASE_URL", _default_db)
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # SQLite needs connect_args check_same_thread=False
 if DATABASE_URL.startswith("sqlite"):

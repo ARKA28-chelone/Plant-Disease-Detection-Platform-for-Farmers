@@ -1,5 +1,9 @@
 import io
 import os
+
+if os.getenv("VERCEL"):
+    os.environ.setdefault("HF_HOME", "/tmp/huggingface")
+
 from PIL import Image
 from transformers import pipeline
 from backend.disease_data import get_disease_info
