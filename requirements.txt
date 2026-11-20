@@ -1,3 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 fastapi
 uvicorn
 sqlalchemy
@@ -5,7 +6,8 @@ pydantic
 python-multipart
 pillow
 transformers
-torch
+torch==2.9.1+cpu; sys_platform == 'linux'
+torch; sys_platform != 'linux'
 fpdf2
 pytest
 httpx
