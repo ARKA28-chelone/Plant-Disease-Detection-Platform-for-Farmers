@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plant Disease Detection Using Machine Learning</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation bar -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <span class="logo">🌿 PlantCare ML</span>
+      <nav>
+        <a href="#home">Home</a>
+        <a href="#about">About</a>
+        <a href="#diseases">Plant Diseases</a>
+        <a href="#detection">Detection</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- Home -->
+    <section id="home" class="hero">
+      <div class="container">
+        <h1>Plant Disease Detection Using Machine Learning</h1>
+        <p>
+          Upload a photo of a plant leaf and let a trained ML model help
+          identify possible diseases, so farmers can act early.
+        </p>
+        <a href="#detection" class="btn btn-light">Get Started</a>
+      </div>
+    </section>
+
+    <!-- About -->
+    <section id="about" class="section">
+      <div class="container">
+        <h2>About the Project</h2>
+        <p class="lead">
+          Plant diseases reduce crop yield and farmers' income. Identifying a
+          disease by eye needs expertise and is often slow. A machine learning
+          model can be trained on labelled leaf images to recognise disease
+          patterns quickly.
+        </p>
+        <div class="grid three">
+          <div class="box"><h3>1. Upload</h3><p>The user uploads a leaf image through this web page.</p></div>
+          <div class="box"><h3>2. Predict</h3><p>A backend server will pass the image to the ML model.</p></div>
+          <div class="box"><h3>3. Store &amp; Show</h3><p>Disease details and history will come from a MySQL database.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Plant diseases (cards are created in script.js) -->
+    <section id="diseases" class="section alt">
+      <div class="container">
+        <h2>Plant Diseases</h2>
+        <p class="lead">Example diseases for the four plant categories.</p>
+        <div id="plantCards" class="grid four"></div>
+      </div>
+    </section>
+
+    <!-- Detection -->
+    <section id="detection" class="section">
+      <div class="container">
+        <h2>Disease Detection</h2>
+        <p class="lead">Upload a clear image of a single leaf (JPG or PNG, max 5 MB).</p>
+
+        <div class="grid two">
+          <!-- Upload panel -->
+          <div class="panel">
+            <div class="step-group">
+              <label class="upload-label">Step 1: Select the plant</label>
+              <div class="plant-btn-group" id="plantSelector">
+                <button type="button" class="plant-select-btn active" data-plant="auto">🌿 All / Auto</button>
+                <button type="button" class="plant-select-btn" data-plant="Tomato">🍅 Tomato</button>
+                <button type="button" class="plant-select-btn" data-plant="Potato">🥔 Potato</button>
+                <button type="button" class="plant-select-btn" data-plant="Pepper">🫑 Pepper</button>
+                <button type="button" class="plant-select-btn" data-plant="Corn">🌽 Corn</button>
+              </div>
+            </div>
+
+            <div class="step-group" style="margin-top: 15px;">
+              <label for="imageInput" class="upload-label">Step 2: Choose a leaf image</label>
+              <input type="file" id="imageInput" accept="image/png, image/jpeg">
+            </div>
+            <p id="errorMsg" class="error"></p>
+
+            <div class="preview-box">
+              <img id="preview" alt="Selected leaf preview" hidden>
+              <span id="previewText">No image selected</span>
+            </div>
+
+            <button id="detectBtn" class="btn" disabled>Detect Disease</button>
+          </div>
+
+          <!-- Result panel -->
+          <div class="panel">
+            <h3>Result</h3>
+            <span class="badge">Pending model integration</span>
+            <table>
+              <tr><th>Predicted disease</th><td id="resDisease">Not available yet</td></tr>
+              <tr><th>Confidence score</th><td id="resConfidence">Not available yet</td></tr>
+              <tr><th>Disease information</th><td id="resInfo">Will be loaded from the database</td></tr>
+            </table>
+            <p id="resNote" class="note">
+              No ML model or backend is connected yet, so no prediction is made.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>DBMS Project – Plant Disease Detection Using Machine Learning</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2e7d32">
+  <title>Offline | PlantCare ML</title>
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="auth-page">
+
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a class="logo" href="index.html">🌿 PlantCare ML</a>
+    </div>
+  </header>
+
+  <main class="auth-wrap">
+    <div class="panel auth-card" style="text-align: center;">
+      <h2>You're offline</h2>
+      <p class="auth-sub" style="margin-top: 10px;">
+        PlantCare needs an internet connection to analyse leaves and load your records.
+        Check your connection and try again.
+      </p>
+      <button type="button" class="btn auth-submit" onclick="location.reload()">Try again</button>
+      <p class="note auth-alt"><a href="diseases.html">Browse the disease library →</a></p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>DBMS Project – Plant Disease Detection Using Machine Learning</p>
+  </footer>
+</body>
+</html>

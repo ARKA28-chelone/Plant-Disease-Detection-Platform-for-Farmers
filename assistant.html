@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Krishi Mitra Assistant | PlantCare ML</title>
+  <meta name="theme-color" content="#2e7d32">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation bar -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a class="logo" href="index.html">🌿 PlantCare ML</a>
+      <nav>
+        <a href="index.html#home">Home</a>
+        <a href="index.html#about">About</a>
+        <a href="index.html#diseases">Plant Diseases</a>
+        <a href="index.html#detection">Detection</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="tracker.html">Tracker</a>
+        <a href="assistant.html">Assistant</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero hero-small">
+      <div class="container">
+        <h1>Krishi Mitra – Farmer Assistant</h1>
+        <p>Ask anything about crop diseases, pests, watering or plant care.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container chat-container">
+        <div class="panel chat-panel">
+          <div id="chatLog" class="chat-log" aria-live="polite">
+            <div class="msg bot">
+              <p>Namaste! 🌱 I'm Krishi Mitra. I can look up diseases in our database and check your own scans and
+              tracked plants. What would you like to know?</p>
+            </div>
+          </div>
+
+          <div class="suggestions" id="suggestions">
+            <button type="button" class="plant-select-btn">How do I treat tomato early blight?</button>
+            <button type="button" class="plant-select-btn">What did my last scan show?</button>
+            <button type="button" class="plant-select-btn">How are my tracked plants doing?</button>
+            <button type="button" class="plant-select-btn">How often should I water potatoes?</button>
+          </div>
+
+          <form id="chatForm" class="chat-form">
+            <input type="text" id="chatInput" placeholder="Type your question..." maxlength="2000" autocomplete="off">
+            <button type="submit" class="btn" id="sendBtn">Send</button>
+          </form>
+          <p class="note chat-disclaimer">
+            Powered by an open-source AI model (Qwen2.5) running locally. Answers are guidance only –
+            consult a local agricultural expert before using chemicals.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>DBMS Project – Plant Disease Detection Using Machine Learning</p>
+  </footer>
+
+  <script src="i18n.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    (function () {
+      if (!Auth.getUser()) { window.location.href = "login.html"; return; }
+
+      const log = document.getElementById("chatLog");
+      const form = document.getElementById("chatForm");
+      const input = document.getElementById("chatInput");
+      const sendBtn = document.getElementById("sendBtn");
+      const history = [];
+      const toolNames = {
+        lookup_disease: "disease database",
+        get_my_recent_scans: "your scans",
+        get_my_tracked_plants: "your tracked plants"
+      };
+
+      function addMessage(role, text, meta) {
+        const div = document.createElement("div");
+        div.className = "msg " + role;
+        const p = document.createElement("p");
+        p.textContent = text;
+        div.appendChild(p);
+        if (meta) {
+          const small = document.createElement("small");
+          small.textContent = meta;
+          div.appendChild(small);
+        }
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+        return div;
+      }
+
+      function send(question) {
+        question = question.trim();
+        if (!question) return;
+        addMessage("user", question);
+        input.value = "";
+        sendBtn.disabled = true;
+        const thinking = addMessage("bot thinking", "Thinking...");
+
+        Auth.request("/api/assistant", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: question,
+            history: history,
+            language: typeof I18n !== "undefined" ? I18n.getLang() : "en"
+          })
+        }).then(function (data) {
+          thinking.remove();
+          const used = Array.from(new Set(data.tools_used || [])).map(function (t) { return toolNames[t] || t; });
+          addMessage("bot", data.reply || "Sorry, I couldn't come up with an answer.",
+            used.length ? "Checked: " + used.join(", ") : "");
+          history.push({ role: "user", content: question }, { role: "assistant", content: data.reply || "" });
+        }).catch(function (err) {
+          thinking.remove();
+          addMessage("bot error", "Sorry, something went wrong: " + err.message);
+        }).finally(function () {
+          sendBtn.disabled = false;
+          input.focus();
+        });
+      }
+
+      form.addEventListener("submit", function (e) { e.preventDefault(); send(input.value); });
+      document.getElementById("suggestions").addEventListener("click", function (e) {
+        const b = e.target.closest("button");
+        if (b) send(b.textContent);
+      });
+    })();
+  </script>
+</body>
+</html>

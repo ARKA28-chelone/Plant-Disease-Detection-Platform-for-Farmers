@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2e7d32">
+  <title>Compare Scans | PlantCare ML</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation bar -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a class="logo" href="index.html">🌿 PlantCare ML</a>
+      <nav>
+        <a href="index.html#home">Home</a>
+        <a href="index.html#about">About</a>
+        <a href="index.html#diseases">Plant Diseases</a>
+        <a href="index.html#detection">Detection</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="tracker.html">Tracker</a>
+        <a href="assistant.html">Assistant</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero hero-small">
+      <div class="container">
+        <h1>Before &amp; After</h1>
+        <p>Compare two scans to see whether a treatment is working.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="recommendation" id="verdict" hidden>
+          <strong id="verdictTitle"></strong>
+          <p id="verdictText"></p>
+        </div>
+
+        <div class="grid two" style="margin-top: 15px;">
+          <div class="panel compare-col">
+            <div class="field">
+              <label for="scanA">Before</label>
+              <select id="scanA" class="plain-select"></select>
+            </div>
+            <div id="colA"></div>
+          </div>
+          <div class="panel compare-col">
+            <div class="field">
+              <label for="scanB">After</label>
+              <select id="scanB" class="plain-select"></select>
+            </div>
+            <div id="colB"></div>
+          </div>
+        </div>
+        <p class="note" id="compareNote"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>DBMS Project – Plant Disease Detection Using Machine Learning</p>
+  </footer>
+
+  <script src="i18n.js"></script>
+  <script src="auth.js"></script>
+  <script src="chat-widget.js"></script>
+  <script>
+    (function () {
+      if (!Auth.getUser()) { window.location.href = "login.html"; return; }
+      const $ = function (id) { return document.getElementById(id); };
+      const esc = Auth.escapeHtml;
+      let scans = [];
+
+      function label(s) {
+        const d = Auth.toDate(s.created_at);
+        return (d ? d.toLocaleDateString() + " · " : "") + s.plant + " – " + s.disease +
+          (s.tracked_name ? " (" + s.tracked_name + ")" : "");
+      }
+
+      function column(s) {
+        if (!s) return '<p class="empty-state">Choose a scan.</p>';
+        const healthy = /healthy/i.test(s.disease);
+        const d = Auth.toDate(s.created_at);
+        return '<img class="result-thumb compare-img" src="' + s.image_url + '" alt="Leaf scan">' +
+          '<span class="badge' + (healthy ? " ok" : "") + '">' + (healthy ? "Healthy leaf" : "Disease detected") + "</span>" +
+          "<table><tr><th>Plant</th><td>" + esc(s.plant) + "</td></tr>" +
+          "<tr><th>Predicted disease</th><td>" + esc(s.disease) + "</td></tr>" +
+          "<tr><th>Confidence score</th><td>" + esc(s.confidence) +
+          '<div class="confidence-bar"><span style="width:' + parseFloat(s.confidence) + '%"></span></div></td></tr>' +
+          "<tr><th>Scanned on</th><td>" + (d ? d.toLocaleString() : "–") + "</td></tr>" +
+          (s.notes ? "<tr><th>My Notes</th><td>" + esc(s.notes) + "</td></tr>" : "") +
+          '</table><p style="margin-top: 10px;"><a class="text-link" href="results.html?id=' + s.id + '">Open full report →</a></p>';
+      }
+
+      // Plain-language verdict on what changed between the two scans
+      function verdict(a, b) {
+        const ha = /healthy/i.test(a.disease), hb = /healthy/i.test(b.disease);
+        const days = Math.round((Auth.toDate(b.created_at) - Auth.toDate(a.created_at)) / 86400000);
+        const span = days > 0 ? " over " + days + " day" + (days === 1 ? "" : "s") : "";
+        const ca = parseFloat(a.confidence), cb = parseFloat(b.confidence);
+        if (a.plant !== b.plant) {
+          return ["Different crops", "These scans are of different plants (" + a.plant + " and " + b.plant + "), so they can't show recovery. Pick two scans of the same plant."];
+        }
+        if (!ha && hb) return ["✅ Recovered", "The leaf went from " + a.disease + " to healthy" + span + ". The treatment appears to be working – keep monitoring."];
+        if (ha && !hb) return ["⚠️ New problem", b.disease + " appeared" + span + " on a leaf that was healthy before. Start treatment early – open the report for the plan."];
+        if (ha && hb) return ["🌱 Still healthy", "Both scans look healthy" + span + ". Keep up the current care routine."];
+        if (a.disease !== b.disease) return ["⚠️ Different disease", "The diagnosis changed from " + a.disease + " to " + b.disease + span + ". Re-check with a clear photo and follow the new treatment plan."];
+        const diff = cb - ca;
+        if (diff <= -10) return ["🔽 Possibly improving", "Still " + b.disease + ", but the model is less sure of it (" + ca.toFixed(0) + "% → " + cb.toFixed(0) + "%)" + span + ". Symptoms may be fading."];
+        return ["⏳ No improvement yet", "Still " + b.disease + span + ". If you have treated it for over a week, consider the next treatment option or ask the assistant."];
+      }
+
+      function render() {
+        const a = scans.find(function (s) { return String(s.id) === $("scanA").value; });
+        const b = scans.find(function (s) { return String(s.id) === $("scanB").value; });
+        $("colA").innerHTML = column(a);
+        $("colB").innerHTML = column(b);
+        $("verdict").hidden = !(a && b && a.id !== b.id);
+        if (a && b && a.id !== b.id) {
+          const v = verdict(a, b);
+          $("verdictTitle").textContent = v[0];
+          $("verdict").classList.toggle("warn", /^(⚠️|⏳|Different)/.test(v[0]));
+          $("verdictText").textContent = v[1];
+        }
+        const params = new URLSearchParams({ a: $("scanA").value, b: $("scanB").value });
+        history.replaceState(null, "", "compare.html?" + params.toString());
+      }
+
+      Auth.request("/api/history?limit=200").then(function (data) {
+        scans = data.slice().reverse();   // oldest first reads naturally as before -> after
+        if (scans.length < 2) {
+          $("compareNote").innerHTML = 'You need at least two scans to compare. <a href="index.html#detection">Scan a leaf →</a>';
+        }
+        ["scanA", "scanB"].forEach(function (id) {
+          scans.forEach(function (s) { $(id).add(new Option(label(s), s.id)); });
+        });
+        // Defaults: ?a= is the "before" scan; "after" is the next scan of the same plant (or latest)
+        const params = new URLSearchParams(location.search);
+        let a = scans.find(function (s) { return String(s.id) === params.get("a"); }) || scans[Math.max(0, scans.length - 2)];
+        let b = scans.find(function (s) { return String(s.id) === params.get("b"); });
+        if (!b && a) {
+          const same = scans.filter(function (s) {
+            return s.id !== a.id && (a.tracked_id ? s.tracked_id === a.tracked_id : s.plant === a.plant);
+          });
+          b = same.find(function (s) { return Auth.toDate(s.created_at) > Auth.toDate(a.created_at); }) || same[same.length - 1] || scans[scans.length - 1];
+        }
+        // Keep before/after in date order
+        if (a && b && Auth.toDate(b.created_at) < Auth.toDate(a.created_at)) {
+          const t = a; a = b; b = t;
+        }
+        if (a) $("scanA").value = a.id;
+        if (b) $("scanB").value = b.id;
+        render();
+      }).catch(function (err) {
+        if (!Auth.getToken()) { window.location.href = "login.html"; return; }
+        $("compareNote").textContent = "Could not load your scans: " + err.message;
+      });
+
+      $("scanA").addEventListener("change", render);
+      $("scanB").addEventListener("change", render);
+    })();
+  </script>
+</body>
+</html>

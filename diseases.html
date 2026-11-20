@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Disease Library | PlantCare ML</title>
+  <meta name="theme-color" content="#2e7d32">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation bar -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a class="logo" href="index.html">🌿 PlantCare ML</a>
+      <nav>
+        <a href="index.html#home">Home</a>
+        <a href="index.html#about">About</a>
+        <a href="index.html#diseases">Plant Diseases</a>
+        <a href="index.html#detection">Detection</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="tracker.html">Tracker</a>
+        <a href="assistant.html">Assistant</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero hero-small">
+      <div class="container">
+        <h1>Disease Library</h1>
+        <p>Every disease our model can detect, with symptoms and treatments.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="library-tools">
+          <input type="search" id="diseaseSearch" class="plain-select" placeholder="Search diseases..." aria-label="Search diseases">
+          <div class="plant-btn-group" id="cropFilter">
+            <button type="button" class="plant-select-btn active" data-crop="">🌿 All</button>
+          </div>
+        </div>
+        <p class="note" id="libraryCount"></p>
+        <div id="diseaseList" class="disease-grid"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>DBMS Project – Plant Disease Detection Using Machine Learning</p>
+  </footer>
+
+  <script src="i18n.js"></script>
+  <script src="auth.js"></script>
+  <script src="chat-widget.js"></script>
+  <script>
+    (function () {
+      const esc = Auth.escapeHtml;
+      const list = document.getElementById("diseaseList");
+      const search = document.getElementById("diseaseSearch");
+      const cropFilter = document.getElementById("cropFilter");
+      const icons = { Tomato: "🍅", Potato: "🥔", Pepper: "🫑", Corn: "🌽" };
+      let diseases = [];
+      let crop = new URLSearchParams(location.search).get("plant") || "";
+
+      function render() {
+        const q = search.value.trim().toLowerCase();
+        const shown = diseases.filter(function (d) {
+          const text = (d.plant + " " + d.name + " " + d.symptoms).toLowerCase();
+          return (!crop || d.plant === crop) && (!q || text.indexOf(q) !== -1);
+        });
+        document.getElementById("libraryCount").textContent = shown.length + " of " + diseases.length + " conditions";
+        list.innerHTML = shown.length ? shown.map(function (d) {
+          const healthy = /healthy/i.test(d.name);
+          return '<article class="card disease-card" id="disease-' + d.disease_id + '">' +
+            '<div class="disease-head"><h3>' + (icons[d.plant] || "🌱") + " " + esc(d.plant) + " – " + esc(d.name) + "</h3>" +
+            '<span class="badge' + (healthy ? " ok" : "") + '">' + esc(d.pathogen_type || "–") + "</span></div>" +
+            "<p><strong>Symptoms:</strong> " + esc(d.symptoms) + "</p>" +
+            (d.prevention ? "<p><strong>Prevention:</strong> " + esc(d.prevention) + "</p>" : "") +
+            (d.treatments.length ? "<details><summary>Treatments (" + d.treatments.length + ")</summary><ul>" +
+              d.treatments.map(function (t) {
+                return "<li><strong>" + esc(t.type) + ":</strong> " + esc(t.recommendation) + "</li>";
+              }).join("") + "</ul></details>" : "") +
+            '<button type="button" class="pdf-link" data-ask="' + esc(d.plant + " " + d.name) + '">💬 Ask the assistant</button>' +
+            "</article>";
+        }).join("") : '<p class="empty-state">No diseases match your search.</p>';
+      }
+
+      Auth.request("/api/diseases").then(function (data) {
+        diseases = data.sort(function (a, b) {
+          return (a.plant + a.name).localeCompare(b.plant + b.name);
+        });
+        // One filter button per crop in the database
+        Array.from(new Set(diseases.map(function (d) { return d.plant; }))).sort().forEach(function (p) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "plant-select-btn";
+          b.dataset.crop = p;
+          b.textContent = (icons[p] || "🌱") + " " + p;
+          cropFilter.appendChild(b);
+        });
+        cropFilter.querySelectorAll("button").forEach(function (b) {
+          b.classList.toggle("active", b.dataset.crop === crop);
+        });
+        render();
+      }).catch(function (err) {
+        list.innerHTML = '<p class="error">Could not load diseases: ' + esc(err.message) + "</p>";
+      });
+
+      search.addEventListener("input", render);
+      cropFilter.addEventListener("click", function (e) {
+        const b = e.target.closest("button");
+        if (!b) return;
+        crop = b.dataset.crop;
+        cropFilter.querySelectorAll("button").forEach(function (x) { x.classList.toggle("active", x === b); });
+        render();
+      });
+      list.addEventListener("click", function (e) {
+        const b = e.target.closest("[data-ask]");
+        if (!b) return;
+        const q = "Tell me about " + b.dataset.ask + ": how do I recognise it early and treat it?";
+        if (window.KrishiChat) window.KrishiChat.ask(q);
+      });
+    })();
+  </script>
+</body>
+</html>

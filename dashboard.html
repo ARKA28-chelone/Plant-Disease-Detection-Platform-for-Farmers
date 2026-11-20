@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard | PlantCare ML</title>
+  <meta name="theme-color" content="#2e7d32">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation bar -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a class="logo" href="index.html">🌿 PlantCare ML</a>
+      <nav>
+        <a href="index.html#home">Home</a>
+        <a href="index.html#about">About</a>
+        <a href="index.html#diseases">Plant Diseases</a>
+        <a href="index.html#detection">Detection</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="tracker.html">Tracker</a>
+        <a href="assistant.html">Assistant</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero hero-small">
+      <div class="container">
+        <h1 id="dashGreeting">Your Plant Health Dashboard</h1>
+        <p>A quick overview of the leaves you have scanned.</p>
+      </div>
+    </section>
+
+    <!-- Reminders (hidden when there are none) -->
+    <section class="section reminders-section" id="remindersSection" hidden>
+      <div class="container">
+        <div class="panel">
+          <h3>Reminders</h3>
+          <div id="reminderList" class="reminder-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Summary numbers -->
+    <section class="section">
+      <div class="container">
+        <h2>Overview</h2>
+        <p class="lead" id="dashNote">Loading your scans...</p>
+        <div class="grid four">
+          <div class="box stat"><span class="stat-value" id="statTotal">–</span><span>Total scans</span></div>
+          <div class="box stat"><span class="stat-value" id="statDiseased">–</span><span>Diseases found</span></div>
+          <div class="box stat"><span class="stat-value" id="statHealthy">–</span><span>Healthy leaves</span></div>
+          <div class="box stat">
+            <span class="stat-value" id="statAccuracy">–</span><span>Model accuracy</span>
+            <small class="stat-sub" id="statAccuracyNote">Based on your 👍 / 👎 feedback</small>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Breakdown by plant -->
+    <section class="section alt">
+      <div class="container">
+        <h2>Scans by Plant</h2>
+        <p class="lead">How many leaves of each crop you have checked.</p>
+        <div class="panel" id="plantBreakdown"></div>
+      </div>
+    </section>
+
+    <!-- Scans with search & filters -->
+    <section class="section">
+      <div class="container">
+        <h2>My Scans</h2>
+        <p class="lead">Click a scan to open its full report.</p>
+
+        <form class="filter-bar panel" id="filterForm">
+          <input type="search" name="q" placeholder="Search disease, plant or notes..." aria-label="Search">
+          <select name="plant" aria-label="Plant"><option value="">All plants</option></select>
+          <select name="disease" aria-label="Disease"><option value="">All diseases</option></select>
+          <label class="inline-label">From <input type="date" name="date_from"></label>
+          <label class="inline-label">To <input type="date" name="date_to"></label>
+          <label class="inline-check"><input type="checkbox" name="diseased_only"> Diseases only</label>
+          <button type="button" class="link-plain" id="clearFilters">Clear filters</button>
+        </form>
+
+        <div id="historyList" class="history-grid"></div>
+
+        <div class="action-row" style="margin-top: 25px;">
+          <a href="index.html#detection" class="btn">Scan a New Leaf</a>
+          <span class="export-label">Export my data:</span>
+          <button type="button" class="btn btn-outline" id="exportScans">Scans (CSV)</button>
+          <button type="button" class="btn btn-outline" id="exportLogs">Health logs (CSV)</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>DBMS Project – Plant Disease Detection Using Machine Learning</p>
+  </footer>
+
+  <script src="i18n.js"></script>
+  <script src="auth.js"></script>
+  <script src="chat-widget.js"></script>
+  <script>
+    (function () {
+      const user = Auth.getUser();
+      if (!user) {
+        window.location.href = "login.html";
+        return;
+      }
+      document.getElementById("dashGreeting").textContent = "Welcome, " + user.name.split(" ")[0];
+
+      const esc = Auth.escapeHtml;
+      const list = document.getElementById("historyList");
+      const form = document.getElementById("filterForm");
+
+      function onError(err) {
+        if (!Auth.getToken()) { window.location.href = "login.html"; return; }
+        document.getElementById("dashNote").textContent = "Could not load your scans: " + err.message;
+      }
+
+      // ----- Overview + plant breakdown (all scans) -----
+      Promise.all([Auth.request("/api/history?limit=500"), Auth.request("/api/me/summary")])
+        .then(function (results) {
+          const records = results[0], summary = results[1];
+          const healthy = records.filter(function (r) { return /healthy/i.test(r.disease); }).length;
+          const counts = {};
+          records.forEach(function (r) { counts[r.plant] = (counts[r.plant] || 0) + 1; });
+          const plantsSorted = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+
+          document.getElementById("statTotal").textContent = summary.scan_count;
+          document.getElementById("statHealthy").textContent = healthy;
+          document.getElementById("statDiseased").textContent = records.length - healthy;
+          const fb = summary.feedback;
+          document.getElementById("statAccuracy").textContent = fb.accuracy === null ? "–" : fb.accuracy + "%";
+          document.getElementById("statAccuracyNote").textContent = fb.total
+            ? fb.correct + " of " + fb.total + " predictions marked correct"
+            : "Rate scans with 👍 / 👎 to measure this";
+          document.getElementById("dashNote").textContent = records.length
+            ? "You have scanned " + summary.scan_count + " leaves" + (plantsSorted[0] ? ", mostly " + plantsSorted[0] + "." : ".")
+            : "You have not scanned any leaves yet.";
+
+          const breakdown = document.getElementById("plantBreakdown");
+          breakdown.innerHTML = plantsSorted.length
+            ? plantsSorted.map(function (p) {
+                const pct = Math.round(counts[p] / records.length * 100);
+                return '<div class="bar-row"><span>' + esc(p) + "</span>" +
+                  '<div class="confidence-bar"><span style="width:' + pct + '%"></span></div>' +
+                  "<strong>" + counts[p] + "</strong></div>";
+              }).join("")
+            : '<p class="empty-state">No data yet.</p>';
+        })
+        .catch(onError);
+
+      // ----- Filter dropdown options -----
+      Auth.request("/api/history/filters").then(function (opts) {
+        opts.plants.forEach(function (p) { form.plant.add(new Option(p, p)); });
+        opts.diseases.forEach(function (d) { form.disease.add(new Option(d, d)); });
+      });
+
+      // ----- Scan list (filtered) -----
+      function loadScans() {
+        const params = new URLSearchParams({ limit: "60" });
+        ["q", "plant", "disease", "date_from", "date_to"].forEach(function (k) {
+          if (form[k].value) params.set(k, form[k].value.trim());
+        });
+        if (form.diseased_only.checked) params.set("diseased_only", "true");
+
+        Auth.request("/api/history?" + params.toString()).then(function (records) {
+          const filtered = params.toString() !== "limit=60";
+          if (!records.length) {
+            list.innerHTML = filtered
+              ? '<p class="empty-state">No scans match these filters.</p>'
+              : '<p class="empty-state">No scans yet. <a href="index.html#detection">Analyse your first leaf →</a></p>';
+            return;
+          }
+          list.innerHTML = records.map(function (r) {
+            const tags = [];
+            if (r.tracked_name) tags.push('<span class="tag">🌱 ' + esc(r.tracked_name) + "</span>");
+            if (r.feedback) tags.push('<span class="tag">' + (r.feedback.is_correct ? "👍 Correct" : "👎 Wrong") + "</span>");
+            if (r.notes) tags.push('<span class="tag">📝 Notes</span>');
+            const when = Auth.toDate(r.created_at);
+            return '<a class="history-card" href="results.html?id=' + r.id + '">' +
+              '<img src="' + r.image_url + '" alt="Leaf scan" loading="lazy">' +
+              "<div><strong>" + esc(r.disease) + "</strong>" +
+              esc(r.plant) + " · " + esc(r.confidence) +
+              (when ? "<br><small>" + when.toLocaleDateString() + "</small>" : "") +
+              (tags.length ? '<div class="tag-row">' + tags.join("") + "</div>" : "") +
+              '<button type="button" class="pdf-link" data-id="' + r.id + '">📄 PDF Report</button></div></a>';
+          }).join("");
+        }).catch(onError);
+      }
+
+      // Re-run the search as the farmer types (debounced) or changes a filter
+      let timer = null;
+      form.addEventListener("input", function () {
+        clearTimeout(timer);
+        timer = setTimeout(loadScans, 300);
+      });
+      form.addEventListener("submit", function (e) { e.preventDefault(); loadScans(); });
+      document.getElementById("clearFilters").addEventListener("click", function () {
+        form.reset();
+        loadScans();
+      });
+
+      // PDF buttons sit inside the card links, so stop the link opening
+      list.addEventListener("click", function (e) {
+        const btn = e.target.closest(".pdf-link");
+        if (!btn) return;
+        e.preventDefault();
+        Auth.downloadReport(btn.dataset.id, btn).catch(function (err) { btn.textContent = err.message; });
+      });
+
+      // ----- Reminders -----
+      function loadReminders() {
+        Auth.request("/api/reminders").then(function (reminders) {
+          const section = document.getElementById("remindersSection");
+          section.hidden = !reminders.length;
+          document.getElementById("reminderList").innerHTML = reminders.map(function (r) {
+            const due = Auth.toDate(r.due_at);
+            const link = r.prediction_id ? "results.html?id=" + r.prediction_id
+              : (r.tracked_id ? "tracker.html?plant=" + r.tracked_id : "");
+            return '<div class="reminder' + (r.is_due ? " due" : "") + '">' +
+              '<span class="badge' + (r.is_due ? "" : " ok") + '">' + (r.is_due ? "Due now" : "Upcoming") + "</span>" +
+              "<span>" + (link ? '<a href="' + link + '">' + esc(r.message) + "</a>" : esc(r.message)) +
+              "<small>" + due.toLocaleDateString() + "</small></span>" +
+              '<button type="button" class="pdf-link" data-done="' + r.id + '">✓ Done</button></div>';
+          }).join("");
+        });
+      }
+      document.getElementById("reminderList").addEventListener("click", function (e) {
+        const btn = e.target.closest("[data-done]");
+        if (!btn) return;
+        Auth.send("PATCH", "/api/reminders/" + btn.dataset.done, { done: true }).then(loadReminders);
+      });
+
+      // ----- CSV export -----
+      document.getElementById("exportScans").addEventListener("click", function () {
+        Auth.download("/api/export/scans.csv", this, "plantcare_scans.csv");
+      });
+      document.getElementById("exportLogs").addEventListener("click", function () {
+        Auth.download("/api/export/health-logs.csv", this, "plantcare_health_logs.csv");
+      });
+
+      loadScans();
+      loadReminders();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2e7d32">
+  <title>Batch Scan | PlantCare ML</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation bar -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a class="logo" href="index.html">🌿 PlantCare ML</a>
+      <nav>
+        <a href="index.html#home">Home</a>
+        <a href="index.html#about">About</a>
+        <a href="index.html#diseases">Plant Diseases</a>
+        <a href="index.html#detection">Detection</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="tracker.html">Tracker</a>
+        <a href="assistant.html">Assistant</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero hero-small">
+      <div class="container">
+        <h1>Batch Scan</h1>
+        <p>Check up to 10 leaves at once – ideal for walking a whole field.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="grid two">
+          <div class="panel">
+            <div class="step-group">
+              <label class="upload-label">Step 1: Select the plant</label>
+              <div class="plant-btn-group" id="cropPicker">
+                <button type="button" class="plant-select-btn active" data-plant="auto">🌿 All / Auto</button>
+                <button type="button" class="plant-select-btn" data-plant="Tomato">🍅 Tomato</button>
+                <button type="button" class="plant-select-btn" data-plant="Potato">🥔 Potato</button>
+                <button type="button" class="plant-select-btn" data-plant="Pepper">🫑 Pepper</button>
+                <button type="button" class="plant-select-btn" data-plant="Corn">🌽 Corn</button>
+              </div>
+            </div>
+            <div class="step-group">
+              <label for="batchInput" class="upload-label">Step 2: Choose leaf photos (JPG or PNG, max 5 MB each)</label>
+              <input type="file" id="batchInput" accept="image/png, image/jpeg" multiple>
+            </div>
+            <div class="step-group" id="trackedStep" hidden>
+              <label for="trackedSelect" class="upload-label">Step 3 (optional): Link all to a tracked plant</label>
+              <select id="trackedSelect" class="plain-select" style="margin-top: 8px;">
+                <option value="">Not linked</option>
+              </select>
+            </div>
+            <div class="preview-box drop-zone" id="dropZone">
+              <span id="dropText">Drop leaf photos here</span>
+            </div>
+            <p class="error" id="batchError"></p>
+            <div class="action-row">
+              <button type="button" class="btn" id="scanAllBtn" disabled>Scan All</button>
+              <button type="button" class="link-plain" id="clearBtn" hidden>Clear</button>
+            </div>
+            <p class="note" id="guestNote" hidden><a href="login.html">Log in</a> to save these scans and get PDF reports.</p>
+          </div>
+
+          <div class="panel">
+            <h3>Summary</h3>
+            <div class="grid three batch-summary">
+              <div class="box stat"><span class="stat-value" id="sumTotal">0</span><span>Leaves</span></div>
+              <div class="box stat"><span class="stat-value" id="sumDiseased">0</span><span>Diseases found</span></div>
+              <div class="box stat"><span class="stat-value" id="sumHealthy">0</span><span>Healthy leaves</span></div>
+            </div>
+            <p class="note" id="sumNote">Add photos and press Scan All.</p>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top: 20px; overflow-x: auto;">
+          <table class="batch-table">
+            <thead>
+              <tr><th>Leaf</th><th>Photo check</th><th>Result</th><th>Confidence</th><th></th></tr>
+            </thead>
+            <tbody id="batchRows">
+              <tr><td colspan="5" class="empty-state">No photos added yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>DBMS Project – Plant Disease Detection Using Machine Learning</p>
+  </footer>
+
+  <script src="i18n.js"></script>
+  <script src="auth.js"></script>
+  <script src="chat-widget.js"></script>
+  <script src="upload-tools.js"></script>
+  <script>
+    (function () {
+      const MAX_FILES = 10, MAX_MB = 5;
+      const $ = function (id) { return document.getElementById(id); };
+      const esc = Auth.escapeHtml;
+      const loggedIn = !!Auth.getToken();
+      let items = [];        // { file, url, quality, result, error }
+      let crop = "auto";
+      let running = false;
+
+      $("guestNote").hidden = loggedIn;
+
+      $("cropPicker").addEventListener("click", function (e) {
+        const b = e.target.closest("button");
+        if (!b || running) return;
+        crop = b.dataset.plant;
+        this.querySelectorAll("button").forEach(function (x) { x.classList.toggle("active", x === b); });
+      });
+
+      if (loggedIn) {
+        Auth.request("/api/tracker").then(function (plants) {
+          if (!plants.length) return;
+          plants.forEach(function (p) { $("trackedSelect").add(new Option(p.nickname + " (" + p.crop + ")", p.id)); });
+          $("trackedStep").hidden = false;
+        }).catch(function () {});
+      }
+
+      function addFiles(files) {
+        if (running) return;
+        const errors = [];
+        files.forEach(function (f) {
+          if (items.length >= MAX_FILES) { errors.push("Only " + MAX_FILES + " photos at a time."); return; }
+          if (["image/jpeg", "image/png"].indexOf(f.type) === -1) { errors.push(f.name + ": not a JPG or PNG."); return; }
+          if (f.size > MAX_MB * 1024 * 1024) { errors.push(f.name + ": larger than " + MAX_MB + " MB."); return; }
+          const item = { file: f, url: URL.createObjectURL(f), quality: null, result: null, error: null };
+          items.push(item);
+          UploadTools.checkQuality(f).then(function (q) { item.quality = q; render(); }).catch(function () {});
+        });
+        $("batchError").textContent = Array.from(new Set(errors)).join(" ");
+        render();
+      }
+
+      $("batchInput").addEventListener("change", function () {
+        addFiles(Array.from(this.files));
+        this.value = "";
+      });
+      UploadTools.enableDrop($("dropZone"), addFiles);
+
+      $("clearBtn").addEventListener("click", function () {
+        items.forEach(function (i) { URL.revokeObjectURL(i.url); });
+        items = [];
+        $("batchError").textContent = "";
+        render();
+      });
+
+      function render() {
+        $("scanAllBtn").disabled = running || !items.some(function (i) { return !i.result && !i.error; });
+        $("clearBtn").hidden = running || !items.length;
+        $("dropText").textContent = items.length ? items.length + " photo(s) added – drop more here" : "Drop leaf photos here";
+
+        $("batchRows").innerHTML = items.length ? items.map(function (it, idx) {
+          const q = it.quality;
+          const check = !q ? "Checking..." : (q.warnings.length
+            ? '<span class="warn-text">⚠️ ' + q.warnings.map(function (w) { return esc(w.split(" – ")[0]); }).join("<br>⚠️ ") + "</span>"
+            : '<span class="ok-text">✓ Good photo</span>');
+          let result = '<span class="note">Waiting</span>', conf = "–", actions = "";
+          if (it.pending) result = '<span class="note">Analyzing leaf...</span>';
+          if (it.error) result = '<span class="error">' + esc(it.error) + "</span>";
+          if (it.result) {
+            const r = it.result;
+            const healthy = /healthy/i.test(r.disease);
+            result = '<span class="badge' + (healthy ? " ok" : "") + '">' + (healthy ? "Healthy leaf" : "Disease detected") + "</span><br>" + esc(r.disease);
+            conf = esc(r.confidence) + '<div class="confidence-bar"><span style="width:' + parseFloat(r.confidence) + '%"></span></div>';
+            if (loggedIn && r.prediction_id) {
+              actions = '<a class="pdf-link" href="results.html?id=' + r.prediction_id + '">Report</a> ' +
+                '<button type="button" class="pdf-link" data-pdf="' + r.prediction_id + '">📄 PDF</button>';
+            }
+          }
+          return '<tr><td><img class="batch-thumb" src="' + it.url + '" alt="Leaf ' + (idx + 1) + '"></td><td>' + check +
+            "</td><td>" + result + "</td><td>" + conf + "</td><td>" + actions + "</td></tr>";
+        }).join("") : '<tr><td colspan="5" class="empty-state">No photos added yet.</td></tr>';
+
+        const done = items.filter(function (i) { return i.result; });
+        const healthy = done.filter(function (i) { return /healthy/i.test(i.result.disease); }).length;
+        $("sumTotal").textContent = done.length;
+        $("sumHealthy").textContent = healthy;
+        $("sumDiseased").textContent = done.length - healthy;
+        if (done.length) {
+          // Most common problem in this batch
+          const counts = {};
+          done.forEach(function (i) { if (!/healthy/i.test(i.result.disease)) counts[i.result.disease] = (counts[i.result.disease] || 0) + 1; });
+          const top = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; })[0];
+          $("sumNote").textContent = top
+            ? "Most common problem: " + top + " (" + counts[top] + " of " + done.length + " leaves)."
+            : "All scanned leaves look healthy. 🌱";
+        }
+      }
+
+      // Scan one photo at a time so the server isn't overloaded
+      $("scanAllBtn").addEventListener("click", function () {
+        running = true;
+        const todo = items.filter(function (i) { return !i.result && !i.error; });
+        let chain = Promise.resolve();
+        todo.forEach(function (it) {
+          chain = chain.then(function () {
+            it.pending = true;
+            render();
+            const fd = new FormData();
+            fd.append("image", it.file);
+            fd.append("selected_plant", crop);
+            if ($("trackedSelect").value) fd.append("tracked_id", $("trackedSelect").value);
+            return Auth.request("/api/predict", { method: "POST", body: fd })
+              .then(function (data) { it.result = data; })
+              .catch(function (err) { it.error = err.message; })
+              .finally(function () { it.pending = false; render(); });
+          });
+        });
+        chain.finally(function () { running = false; render(); });
+      });
+
+      $("batchRows").addEventListener("click", function (e) {
+        const b = e.target.closest("[data-pdf]");
+        if (b) Auth.downloadReport(b.dataset.pdf, b).catch(function (err) { b.textContent = err.message; });
+      });
+    })();
+  </script>
+</body>
+</html>

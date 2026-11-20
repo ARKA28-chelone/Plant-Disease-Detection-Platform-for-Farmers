@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Profile | PlantCare ML</title>
+  <meta name="theme-color" content="#2e7d32">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation bar -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a class="logo" href="index.html">🌿 PlantCare ML</a>
+      <nav>
+        <a href="index.html#home">Home</a>
+        <a href="index.html#about">About</a>
+        <a href="index.html#diseases">Plant Diseases</a>
+        <a href="index.html#detection">Detection</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="tracker.html">Tracker</a>
+        <a href="assistant.html">Assistant</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero hero-small">
+      <div class="container">
+        <h1>My Profile</h1>
+        <p id="profileSub">Manage your account and data.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <h2>Your activity</h2>
+        <div class="grid four" style="margin-top: 15px;">
+          <div class="box stat"><span class="stat-value" id="pScans">–</span><span>Total scans</span></div>
+          <div class="box stat"><span class="stat-value" id="pPlants">–</span><span>Tracked plants</span></div>
+          <div class="box stat"><span class="stat-value" id="pLogs">–</span><span>Health logs</span></div>
+          <div class="box stat"><span class="stat-value" id="pAccuracy">–</span><span>Model accuracy</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt">
+      <div class="container">
+        <div class="grid two">
+          <div class="panel">
+            <h3>Account details</h3>
+            <form id="nameForm" novalidate>
+              <div class="field">
+                <label for="pName">Full name</label>
+                <input type="text" id="pName" maxlength="100">
+              </div>
+              <div class="field">
+                <label>Email</label>
+                <p id="pEmail">–</p>
+              </div>
+              <div class="field">
+                <label>Member since</label>
+                <p id="pSince">–</p>
+              </div>
+              <div class="action-row">
+                <button type="submit" class="btn">Save name</button>
+                <span class="note" id="nameStatus"></span>
+              </div>
+            </form>
+          </div>
+
+          <div class="panel">
+            <h3>Change password</h3>
+            <form id="passwordForm" novalidate>
+              <div class="field">
+                <label for="curPwd">Current password</label>
+                <input type="password" id="curPwd" autocomplete="current-password">
+              </div>
+              <div class="field">
+                <label for="newPwd">New password</label>
+                <input type="password" id="newPwd" autocomplete="new-password" placeholder="At least 6 characters">
+              </div>
+              <div class="action-row">
+                <button type="submit" class="btn">Update password</button>
+                <span class="note" id="pwdStatus"></span>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="grid two">
+          <div class="panel">
+            <h3>Export my data</h3>
+            <p class="note" style="margin: 0 0 12px;">Download your records as CSV files that open in Excel or Google Sheets.</p>
+            <div class="action-row">
+              <button type="button" class="btn btn-outline" id="exportScans">Scans (CSV)</button>
+              <button type="button" class="btn btn-outline" id="exportLogs">Health logs (CSV)</button>
+            </div>
+          </div>
+
+          <div class="panel danger-zone">
+            <h3>Delete account</h3>
+            <p class="note" style="margin: 0 0 12px;">
+              This permanently deletes your account, scans, uploaded images, tracked plants, logs and reminders.
+              It cannot be undone.
+            </p>
+            <form id="deleteForm" novalidate>
+              <div class="field">
+                <label for="delPwd">Enter your password to confirm</label>
+                <input type="password" id="delPwd" autocomplete="current-password">
+              </div>
+              <div class="action-row">
+                <button type="submit" class="btn btn-danger">Delete account</button>
+                <span class="error" id="delStatus"></span>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>DBMS Project – Plant Disease Detection Using Machine Learning</p>
+  </footer>
+
+  <script src="i18n.js"></script>
+  <script src="auth.js"></script>
+  <script src="chat-widget.js"></script>
+  <script>
+    (function () {
+      if (!Auth.getUser()) { window.location.href = "login.html"; return; }
+      const $ = function (id) { return document.getElementById(id); };
+
+      Auth.request("/api/me/summary").then(function (s) {
+        $("pName").value = s.name;
+        $("pEmail").textContent = s.email;
+        const since = Auth.toDate(s.member_since);
+        $("pSince").textContent = since ? since.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) : "–";
+        $("pScans").textContent = s.scan_count;
+        $("pPlants").textContent = s.tracked_count;
+        $("pLogs").textContent = s.log_count;
+        $("pAccuracy").textContent = s.feedback.accuracy === null ? "–" : s.feedback.accuracy + "%";
+        $("profileSub").textContent = s.is_admin ? "Admin account · " + s.email : s.email;
+      }).catch(function () {
+        if (!Auth.getToken()) window.location.href = "login.html";
+      });
+
+      $("nameForm").addEventListener("submit", function (e) {
+        e.preventDefault();
+        Auth.send("PATCH", "/api/me", { name: $("pName").value })
+          .then(function (user) {
+            Auth.saveUser(user);
+            Auth.renderNav();
+            $("nameStatus").textContent = "Saved ✓";
+          })
+          .catch(function (err) { $("nameStatus").textContent = err.message; });
+      });
+
+      $("passwordForm").addEventListener("submit", function (e) {
+        e.preventDefault();
+        if ($("newPwd").value.length < 6) { $("pwdStatus").textContent = "New password must be at least 6 characters."; return; }
+        Auth.send("POST", "/api/me/password", { current_password: $("curPwd").value, new_password: $("newPwd").value })
+          .then(function () {
+            $("pwdStatus").textContent = "Password updated ✓";
+            e.target.reset();
+          })
+          .catch(function (err) { $("pwdStatus").textContent = err.message; });
+      });
+
+      $("exportScans").addEventListener("click", function () {
+        Auth.download("/api/export/scans.csv", this, "plantcare_scans.csv");
+      });
+      $("exportLogs").addEventListener("click", function () {
+        Auth.download("/api/export/health-logs.csv", this, "plantcare_health_logs.csv");
+      });
+
+      // Two-step delete: first click arms the button, second click deletes
+      const delBtn = $("deleteForm").querySelector("button");
+      $("deleteForm").addEventListener("submit", function (e) {
+        e.preventDefault();
+        if (!$("delPwd").value) { $("delStatus").textContent = "Please enter your password."; return; }
+        if (!delBtn.dataset.armed) {
+          delBtn.dataset.armed = "1";
+          delBtn.textContent = "Click again to permanently delete";
+          return;
+        }
+        Auth.send("DELETE", "/api/me", { password: $("delPwd").value })
+          .then(function () { Auth.logout(); })
+          .catch(function (err) {
+            $("delStatus").textContent = err.message;
+            delete delBtn.dataset.armed;
+            delBtn.textContent = "Delete account";
+          });
+      });
+    })();
+  </script>
+</body>
+</html>

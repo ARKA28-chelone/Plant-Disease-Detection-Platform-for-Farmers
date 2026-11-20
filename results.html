@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leaf Report | PlantCare ML</title>
+  <meta name="theme-color" content="#2e7d32">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation bar -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a class="logo" href="index.html">🌿 PlantCare ML</a>
+      <nav>
+        <a href="index.html#home">Home</a>
+        <a href="index.html#about">About</a>
+        <a href="index.html#diseases">Plant Diseases</a>
+        <a href="index.html#detection">Detection</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="tracker.html">Tracker</a>
+        <a href="assistant.html">Assistant</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero hero-small">
+      <div class="container">
+        <h1>Plant Health Report</h1>
+        <p>The prediction and disease details for a scanned leaf.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="grid two">
+          <!-- Scan image and prediction -->
+          <div class="panel">
+            <h3>Detection Result</h3>
+            <span class="badge" id="resBadge">Loading...</span>
+            <img id="resImage" class="result-thumb" alt="Scanned leaf" hidden>
+            <table>
+              <tr><th>Plant</th><td id="resPlant">–</td></tr>
+              <tr><th>Predicted disease</th><td id="resDisease">–</td></tr>
+              <tr>
+                <th>Confidence score</th>
+                <td><span id="resConfidence">–</span><div class="confidence-bar"><span id="resConfidenceBar"></span></div></td>
+              </tr>
+              <tr><th>Scanned on</th><td id="resDate">–</td></tr>
+            </table>
+            <p id="resNote" class="note"></p>
+
+            <div id="altBox" class="alt-box" hidden>
+              <strong>Other possibilities</strong>
+              <div id="altList"></div>
+            </div>
+
+            <div id="scanTools" hidden>
+              <div class="feedback-row" id="feedbackRow">
+                <span>Was this prediction right?</span>
+                <button type="button" class="plant-select-btn" data-feedback="yes">👍 Yes</button>
+                <button type="button" class="plant-select-btn" data-feedback="no">👎 No</button>
+              </div>
+              <form class="wrong-box" id="wrongBox" hidden>
+                <input type="text" id="correctDisease" list="diseaseOptions" maxlength="150"
+                       placeholder="What was it really? (optional)">
+                <datalist id="diseaseOptions"></datalist>
+                <button type="submit" class="btn">Save</button>
+              </form>
+              <p class="note" id="feedbackNote"></p>
+            </div>
+          </div>
+
+          <!-- Disease details from the database -->
+          <div class="panel">
+            <h3>Disease Information</h3>
+            <table>
+              <tr><th>Pathogen type</th><td id="infoPathogen">–</td></tr>
+              <tr><th>Symptoms</th><td id="infoSymptoms">–</td></tr>
+              <tr><th>Prevention</th><td id="infoPrevention">–</td></tr>
+              <tr><th>Treatments</th><td id="infoTreatments">–</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- Farmer's own tools for this scan -->
+        <div class="grid two" id="manageScan" hidden style="margin-top: 20px;">
+          <div class="panel">
+            <h3>My Notes</h3>
+            <p class="note" style="margin: 0 0 8px;">Notes are saved with the scan and printed on its PDF report.</p>
+            <textarea id="notesInput" class="notes-input" rows="4" maxlength="2000"
+                      placeholder="Write what you did or noticed..."></textarea>
+            <div class="action-row">
+              <button type="button" class="btn" id="saveNotes">Save notes</button>
+              <span class="note" id="notesStatus"></span>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="field">
+              <label for="trackedSelect">Tracked plant</label>
+              <select id="trackedSelect">
+                <option value="0">Not linked</option>
+              </select>
+              <p class="note" id="trackStatus"></p>
+            </div>
+            <div class="field">
+              <label for="reminderDays">Remind me to re-scan</label>
+              <div class="action-row">
+                <select id="reminderDays" class="plain-select" style="width: auto;">
+                  <option value="3">in 3 days</option>
+                  <option value="7" selected>in 7 days</option>
+                  <option value="14">in 14 days</option>
+                </select>
+                <button type="button" class="btn btn-outline" id="setReminder">Set reminder</button>
+              </div>
+              <p class="note" id="reminderStatus"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="action-row" style="margin-top: 25px;">
+          <button type="button" id="downloadReportBtn" class="btn" hidden>📄 Download PDF Report</button>
+          <button type="button" id="askAssistantBtn" class="btn btn-outline" hidden>Ask the assistant</button>
+          <a id="compareLink" class="btn btn-outline" hidden>Compare with another scan</a>
+          <a href="dashboard.html" class="btn btn-outline">← Back to Dashboard</a>
+          <a href="index.html#detection" class="btn btn-outline">Scan Another Leaf</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>DBMS Project – Plant Disease Detection Using Machine Learning</p>
+  </footer>
+
+  <script src="i18n.js"></script>
+  <script src="auth.js"></script>
+  <script src="chat-widget.js"></script>
+  <script>
+    (function () {
+      const note = document.getElementById("resNote");
+      const badge = document.getElementById("resBadge");
+      const $ = function (id) { return document.getElementById(id); };
+      if (!Auth.getUser()) {
+        badge.textContent = "Login required";
+        note.innerHTML = '<a href="login.html">Log in</a> to view your saved leaf reports.';
+        return;
+      }
+
+      function set(id, text) { $(id).textContent = text || "–"; }
+
+      // Show the requested scan, or the latest one
+      const wantedId = new URLSearchParams(location.search).get("id");
+      const load = wantedId
+        ? Auth.request("/api/scans/" + encodeURIComponent(wantedId))
+        : Auth.request("/api/history?limit=1").then(function (r) { return r[0] || null; });
+
+      load.then(function (scan) {
+        if (!scan) {
+          badge.textContent = "No report";
+          note.innerHTML = 'No scan found. <a href="index.html#detection">Analyse a leaf →</a>';
+          return;
+        }
+        render(scan);
+      }).catch(function (err) {
+        badge.textContent = "No report";
+        note.textContent = "Could not load the report: " + err.message;
+      });
+
+      function render(scan) {
+        const healthy = /healthy/i.test(scan.disease);
+        badge.textContent = healthy ? "Healthy leaf" : "Disease detected";
+        badge.classList.toggle("ok", healthy);
+        $("resImage").src = scan.image_url;
+        $("resImage").hidden = false;
+        set("resPlant", scan.plant);
+        set("resDisease", scan.disease);
+        set("resConfidence", scan.confidence);
+        $("resConfidenceBar").style.width = parseFloat(scan.confidence) + "%";
+        const when = Auth.toDate(scan.created_at);
+        set("resDate", when ? when.toLocaleString() : "");
+
+        // Full disease details from the disease table
+        Auth.request("/api/diseases").then(function (diseases) {
+          const d = diseases.find(function (x) { return x.plant === scan.plant && x.name === scan.disease; });
+          $("diseaseOptions").innerHTML = diseases.map(function (x) {
+            return '<option value="' + Auth.escapeHtml(x.plant + " - " + x.name) + '">';
+          }).join("");
+          if (!d) return;
+          set("infoPathogen", d.pathogen_type);
+          set("infoSymptoms", d.symptoms);
+          set("infoPrevention", d.prevention);
+          $("infoTreatments").innerHTML = (d.treatments || []).length
+            ? "<ul>" + d.treatments.map(function (t) {
+                return "<li><strong>" + Auth.escapeHtml(t.type) + ":</strong> " + Auth.escapeHtml(t.recommendation) + "</li>";
+              }).join("") + "</ul>"
+            : "–";
+        });
+
+        // ----- Other possibilities (model's next best guesses) -----
+        const others = (scan.alternatives || []).slice(1).filter(function (a) { return a.score >= 1; });
+        $("altBox").hidden = !others.length;
+        $("altList").innerHTML = others.map(function (a) {
+          return '<div class="bar-row wide"><span>' + Auth.escapeHtml(a.plant + " – " + a.disease) + "</span>" +
+            '<div class="confidence-bar"><span style="width:' + a.score + '%"></span></div>' +
+            "<strong>" + a.score.toFixed(1) + "%</strong></div>";
+        }).join("");
+        $("compareLink").href = "compare.html?a=" + scan.id;
+        $("compareLink").hidden = false;
+
+        // ----- PDF + assistant -----
+        const pdfBtn = $("downloadReportBtn");
+        pdfBtn.hidden = false;
+        pdfBtn.addEventListener("click", function () {
+          Auth.downloadReport(scan.id, pdfBtn).catch(function (err) { note.textContent = "Could not create report: " + err.message; });
+        });
+        const askBtn = $("askAssistantBtn");
+        askBtn.hidden = false;
+        askBtn.addEventListener("click", function () {
+          const q = healthy
+            ? "My " + scan.plant + " leaf was scanned as healthy (" + scan.confidence + "). How do I keep it that way?"
+            : "My " + scan.plant + " has " + scan.disease + " (" + scan.confidence + " confidence). What should I do first?";
+          if (window.KrishiChat) window.KrishiChat.ask(q);
+        });
+
+        // ----- Feedback -----
+        $("scanTools").hidden = false;
+        const row = $("feedbackRow");
+        function markFeedback(fb) {
+          row.querySelectorAll("button").forEach(function (b) {
+            b.classList.toggle("active", !!fb && b.dataset.feedback === (fb.is_correct ? "yes" : "no"));
+          });
+          $("feedbackNote").textContent = fb
+            ? (fb.is_correct ? "You marked this prediction as correct." :
+               "You marked this prediction as wrong" + (fb.correct_disease ? " (actually: " + fb.correct_disease + ")." : "."))
+            : "";
+        }
+        function sendFeedback(isCorrect, correct) {
+          return Auth.send("POST", "/api/scans/" + scan.id + "/feedback", { is_correct: isCorrect, correct_disease: correct || null })
+            .then(function (updated) { markFeedback(updated.feedback); return updated; })
+            .catch(function (err) { $("feedbackNote").textContent = "Could not save feedback: " + err.message; });
+        }
+        markFeedback(scan.feedback);
+        row.addEventListener("click", function (e) {
+          const btn = e.target.closest("[data-feedback]");
+          if (!btn) return;
+          if (btn.dataset.feedback === "yes") {
+            $("wrongBox").hidden = true;
+            sendFeedback(true);
+          } else {
+            sendFeedback(false).then(function () {
+              $("wrongBox").hidden = false;
+              $("correctDisease").focus();
+            });
+          }
+        });
+        $("wrongBox").addEventListener("submit", function (e) {
+          e.preventDefault();
+          sendFeedback(false, $("correctDisease").value.trim()).then(function () { $("wrongBox").hidden = true; });
+        });
+
+        // ----- Notes -----
+        $("manageScan").hidden = false;
+        $("notesInput").value = scan.notes || "";
+        $("saveNotes").addEventListener("click", function () {
+          const btn = this;
+          btn.disabled = true;
+          Auth.send("PATCH", "/api/scans/" + scan.id, { notes: $("notesInput").value })
+            .then(function () { $("notesStatus").textContent = "Saved ✓"; })
+            .catch(function (err) { $("notesStatus").textContent = err.message; })
+            .finally(function () { btn.disabled = false; });
+        });
+
+        // ----- Link to tracked plant -----
+        const select = $("trackedSelect");
+        Auth.request("/api/tracker").then(function (plants) {
+          plants.forEach(function (p) { select.add(new Option(p.nickname + " (" + p.crop + ")", p.id)); });
+          select.value = scan.tracked_id || 0;
+          if (!plants.length) $("trackStatus").innerHTML = '<a href="tracker.html">Add a plant to the tracker</a> to link this scan.';
+        });
+        select.addEventListener("change", function () {
+          Auth.send("PATCH", "/api/scans/" + scan.id, { tracked_id: Number(select.value) })
+            .then(function (updated) {
+              $("trackStatus").textContent = updated.tracked_name ? "Linked to " + updated.tracked_name + " ✓" : "Unlinked ✓";
+            })
+            .catch(function (err) { $("trackStatus").textContent = err.message; });
+        });
+
+        // ----- Reminder -----
+        $("setReminder").addEventListener("click", function () {
+          const days = Number($("reminderDays").value);
+          Auth.send("POST", "/api/reminders", { days: days, prediction_id: scan.id })
+            .then(function (r) {
+              $("reminderStatus").textContent = "Reminder set for " + Auth.toDate(r.due_at).toLocaleDateString() + " ✓ (shown on your dashboard)";
+            })
+            .catch(function (err) { $("reminderStatus").textContent = err.message; });
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin | PlantCare ML</title>
+  <meta name="theme-color" content="#2e7d32">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation bar -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a class="logo" href="index.html">🌿 PlantCare ML</a>
+      <nav>
+        <a href="index.html#home">Home</a>
+        <a href="index.html#about">About</a>
+        <a href="index.html#diseases">Plant Diseases</a>
+        <a href="index.html#detection">Detection</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="tracker.html">Tracker</a>
+        <a href="assistant.html">Assistant</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero hero-small">
+      <div class="container">
+        <h1>Admin Overview</h1>
+        <p>Usage across all PlantCare ML users.</p>
+      </div>
+    </section>
+
+    <section class="section" id="adminBlocked" hidden>
+      <div class="container">
+        <div class="panel"><p class="empty-state" id="blockedMsg"></p></div>
+      </div>
+    </section>
+
+    <div id="adminContent" hidden>
+      <section class="section">
+        <div class="container">
+          <h2>Overview</h2>
+          <div class="grid four" style="margin-top: 15px;">
+            <div class="box stat"><span class="stat-value" id="aUsers">–</span><span>Users</span></div>
+            <div class="box stat"><span class="stat-value" id="aScans">–</span><span>Total scans</span><small class="stat-sub" id="aGuest"></small></div>
+            <div class="box stat"><span class="stat-value" id="aPlants">–</span><span>Tracked plants</span><small class="stat-sub" id="aLogs"></small></div>
+            <div class="box stat"><span class="stat-value" id="aAccuracy">–</span><span>Model accuracy</span><small class="stat-sub" id="aFeedback"></small></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt">
+        <div class="container">
+          <div class="action-row" style="justify-content: space-between;">
+            <h2>Scans per day</h2>
+            <select id="daysSelect" class="plain-select" style="width: auto;">
+              <option value="14">Last 14 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+          </div>
+          <div class="panel chart-box" id="dayChart" style="margin-top: 12px;"></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="grid two">
+            <div class="panel">
+              <h3>Most common diseases</h3>
+              <div id="topDiseases" style="margin-top: 10px;"></div>
+            </div>
+            <div class="panel">
+              <h3>Scans by Plant</h3>
+              <div id="byPlant" style="margin-top: 10px;"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt">
+        <div class="container">
+          <h2>Recent users</h2>
+          <div class="panel" style="margin-top: 12px; overflow-x: auto;">
+            <table id="userTable"></table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>DBMS Project – Plant Disease Detection Using Machine Learning</p>
+  </footer>
+
+  <script src="i18n.js"></script>
+  <script src="auth.js"></script>
+  <script src="chat-widget.js"></script>
+  <script>
+    (function () {
+      if (!Auth.getUser()) { window.location.href = "login.html"; return; }
+      const $ = function (id) { return document.getElementById(id); };
+      const esc = Auth.escapeHtml;
+
+      function bars(rows, label) {
+        const max = Math.max.apply(null, rows.map(function (r) { return r.count; }).concat([1]));
+        return rows.length ? rows.map(function (r) {
+          return '<div class="bar-row wide"><span>' + esc(label(r)) + "</span>" +
+            '<div class="confidence-bar"><span style="width:' + Math.round(r.count / max * 100) + '%"></span></div>' +
+            "<strong>" + r.count + "</strong></div>";
+        }).join("") : '<p class="empty-state">No data yet.</p>';
+      }
+
+      // Column chart of scans per day (inline SVG, same style as the tracker chart)
+      function dayChart(days) {
+        const w = 760, h = 220, padL = 30, padB = 26, padT = 10;
+        const max = Math.max.apply(null, days.map(function (d) { return d.count; }).concat([1]));
+        const slot = (w - padL) / days.length;
+        let svg = '<svg viewBox="0 0 ' + w + " " + h + '" role="img" aria-label="Scans per day">';
+        [0, 0.5, 1].forEach(function (f) {
+          const y = padT + (1 - f) * (h - padT - padB);
+          svg += '<line x1="' + padL + '" x2="' + w + '" y1="' + y + '" y2="' + y + '" class="grid-line"/>' +
+            '<text x="' + (padL - 6) + '" y="' + (y + 4) + '" text-anchor="end" class="axis-label">' + Math.round(max * f) + "</text>";
+        });
+        const step = Math.ceil(days.length / 10);
+        days.forEach(function (d, i) {
+          const bh = d.count / max * (h - padT - padB);
+          const x = padL + i * slot + slot * 0.15;
+          const date = new Date(d.date + "T00:00:00");
+          svg += '<rect x="' + x + '" y="' + (h - padB - bh) + '" width="' + slot * 0.7 + '" height="' + bh + '" class="chart-bar" rx="2">' +
+            "<title>" + date.toLocaleDateString() + ": " + d.count + " scans</title></rect>";
+          if (i % step === 0 || i === days.length - 1) {
+            svg += '<text x="' + (x + slot * 0.35) + '" y="' + (h - 8) + '" text-anchor="middle" class="axis-label">' +
+              date.toLocaleDateString(undefined, { day: "numeric", month: "short" }) + "</text>";
+          }
+        });
+        return svg + "</svg>";
+      }
+
+      function load() {
+        Auth.request("/api/admin/stats?days=" + $("daysSelect").value).then(function (s) {
+          $("adminContent").hidden = false;
+          $("aUsers").textContent = s.totals.users;
+          $("aScans").textContent = s.totals.scans;
+          $("aGuest").textContent = s.totals.guest_scans + " by guests";
+          $("aPlants").textContent = s.totals.tracked_plants;
+          $("aLogs").textContent = s.totals.health_logs + " health logs";
+          $("aAccuracy").textContent = s.feedback.accuracy === null ? "–" : s.feedback.accuracy + "%";
+          $("aFeedback").textContent = s.feedback.total + " ratings from users";
+          $("dayChart").innerHTML = dayChart(s.scans_per_day);
+          $("topDiseases").innerHTML = bars(s.top_diseases, function (r) { return r.plant + " – " + r.disease; });
+          $("byPlant").innerHTML = bars(s.scans_by_plant, function (r) { return r.plant; });
+          $("userTable").innerHTML = "<tr><th>Name</th><th>Email</th><th>Joined</th><th>Scans</th></tr>" +
+            s.users.map(function (u) {
+              const joined = Auth.toDate(u.joined);
+              return "<tr><td>" + esc(u.name) + (u.is_admin ? ' <span class="tag">Admin</span>' : "") + "</td><td>" +
+                esc(u.email) + "</td><td>" + (joined ? joined.toLocaleDateString() : "–") + "</td><td>" + u.scans + "</td></tr>";
+            }).join("");
+        }).catch(function (err) {
+          $("adminBlocked").hidden = false;
+          $("blockedMsg").textContent = err.message === "Admins only."
+            ? "This page is only for admin accounts."
+            : "Could not load admin stats: " + err.message;
+        });
+      }
+
+      $("daysSelect").addEventListener("change", load);
+      load();
+    })();
+  </script>
+</body>
+</html>
